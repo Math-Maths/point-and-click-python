@@ -23,11 +23,22 @@ play_button = Actor("ui/play_button")
 options_button = Actor("ui/options_button")
 quit_button = Actor("ui/quit_button")
 menu_background = Actor("ui/menu_background")
+options_title = Actor("ui/options_image")
+back_button = Actor("ui/back_button")
+sound_image = Actor("ui/sound_image")
+sound_icon = Actor("ui/sound_on_image")
+
 
 play_button.pos = (WIDTH // 2, 110)
 options_button.pos = (WIDTH // 2, 150)
 quit_button.pos = (WIDTH // 2, 190)
 menu_background.pos = (WIDTH // 2, HEIGHT // 2)
+options_title.pos = (WIDTH // 2, 45)
+back_button.pos = (WIDTH // 2, HEIGHT // 1.5)
+sound_image.pos = (WIDTH // 2 - 20, HEIGHT // 2)
+sound_icon.pos = (sound_image.pos[0] + 80, HEIGHT // 2)
+
+sound_on = True
 
 # Player Data
 player_score = 0
@@ -154,29 +165,37 @@ def draw_menu():
     global player_score
     global best_score
 
-    if player_score > best_score:
-        best_score = player_score
+    
+    if game_state == GAME_MENU:
+        if player_score > best_score:
+            best_score = player_score
 
-    menu_background.draw()
-    play_button.draw()
-    options_button.draw()
-    quit_button.draw()
+        menu_background.draw()
+        play_button.draw()
+        options_button.draw()
+        quit_button.draw()
 
-    screen.draw.text(
-    f"BEST SCORE\n{best_score}",
-    center=(WIDTH // 2, 44),
-    fontsize=32,
-    fontname="upheavtt",
-    color=(50, 50, 50)
-    )
-
-    screen.draw.text(
+        screen.draw.text(
         f"BEST SCORE\n{best_score}",
-        center=(WIDTH // 2, 40),
+        center=(WIDTH // 2, 44),
         fontsize=32,
-        fontname = "upheavtt",
-        color = "yellow"
-    )
+        fontname="upheavtt",
+        color=(50, 50, 50)
+        )
+
+        screen.draw.text(
+            f"BEST SCORE\n{best_score}",
+            center=(WIDTH // 2, 40),
+            fontsize=32,
+            fontname = "upheavtt",
+            color = "yellow"
+        )
+    elif game_state == GAME_OPTIONS:
+        menu_background.draw()
+        options_title.draw()
+        back_button.draw()
+        sound_image.draw()
+        sound_icon.draw()
 
 # Map Functions
 def load_level(filename):
@@ -480,6 +499,7 @@ def on_mouse_move(pos):
 def on_mouse_down(pos, button):
     global game_state
     global shoot_timer
+    global sound_on
 
     if button != mouse.LEFT:
         return
@@ -493,6 +513,18 @@ def on_mouse_down(pos, button):
 
         elif quit_button.collidepoint(pos):
             quit()
+    
+    elif game_state == GAME_OPTIONS:
+        if back_button.collidepoint(pos):
+            game_state = GAME_MENU
+
+        elif sound_icon.collidepoint(pos):
+            if sound_on:
+                sound_icon.image = "ui/sound_off_image"
+                sound_on = False
+            else:
+                sound_icon.image = "ui/sound_on_image"
+                sound_on = True
 
     elif game_state == GAME_PLAYING:
         if shoot_timer == 0 and player.alive:
@@ -515,7 +547,7 @@ def draw():
     for tile in object_tiles:
         tile.draw()
 
-    if game_state == GAME_MENU:
+    if game_state == GAME_MENU or game_state == GAME_OPTIONS:
         draw_menu()
         return
 
@@ -528,6 +560,22 @@ def draw():
 
     for bullet in bullets:
         bullet.draw()
+
+    screen.draw.text(
+        f"SCORE: {player_score}",
+        center=(WIDTH // 6, 32),
+        fontsize=20,
+        fontname="upheavtt",
+        color=(50, 50, 50)
+        )
+
+    screen.draw.text(
+        f"SCORE: {player_score}",
+        center=(WIDTH // 6, 30),
+        fontsize=20,
+        fontname = "upheavtt",
+        color = "yellow"
+    )
 
 
 pgzrun.go()
