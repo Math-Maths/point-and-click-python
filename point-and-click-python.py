@@ -1,3 +1,4 @@
+import math
 from random import choice
 import random
 from pgzhelper import Actor, keyboard
@@ -8,6 +9,27 @@ import pgzrun
 WIDTH = 512
 HEIGHT = 288
 TILE_SIZE = 16
+
+# Game State
+GAME_MENU = "menu"
+GAME_PLAYING = "playing"
+GAME_OPTIONS = "options"
+
+game_state = GAME_MENU
+
+# Menu Creation
+play_button = Actor("ui/play_button")
+options_button = Actor("ui/options_button")
+quit_button = Actor("ui/quit_button")
+
+play_button.pos = (WIDTH // 2, 110)
+options_button.pos = (WIDTH // 2, 150)
+quit_button.pos = (WIDTH // 2, 190)
+
+# Player Data
+player_score = 0
+death_number = 0
+best_score = 0
 
 # Map layers
 background_tiles = []
@@ -26,7 +48,7 @@ enemy_spawn_positions = [
 ]
 
 enemy_spawn_time = 0
-enemy_spawn_interval = 300
+enemy_spawn_interval = 150
 enemy_speed = 1.5
 enemy_life = 3;
 enemies_image_paths = [
@@ -70,10 +92,13 @@ enemy_3_left_walk_frames = [
 player = Actor("player/tile_0000")
 player.pos = (WIDTH // 2, HEIGHT // 2)
 player._anchor = (player.width // 2, player.height // 2)
+player.width = 8
+player.height = 8
 player.speed = 2
 player.facing_right = True
 player.anim_timer = 0
 player.frame = 0
+player.alive = True
 
 player_right_walk_frames = [
     "player/tile_0000",
@@ -111,7 +136,37 @@ weapon.anchor = (-10, 10)
 weapon.pos = (player.x, player.y)
 # END - Weapon creation
 
+# Bullet creation
+bullet = Actor("weapon/tile_0023")
+bullets = []
+BULLET_SPEED = 6
+BULLET_LIFETIME = 300
+SHOOT_COOLDOWN = 30
+shoot_timer = 0
+
 #---------------- FUNCTIONS ----------------#
+
+# Menu Function
+def draw_menu():
+    #screen.clear()
+
+    #screen.draw.text(
+    #    "MY GAME",
+    #    center=(WIDTH // 2, 40),
+    #    fontsize=48
+    #)
+
+    play_button.draw()
+    options_button.draw()
+    quit_button.draw()
+
+    screen.draw.text(
+        f"BEST SCORE:\n{best_score}",
+        topleft=(10, 10),
+        fontsize=24
+    )
+
+# Map Functions
 def load_level(filename):
     tiles = []
 
@@ -158,7 +213,88 @@ def collides_with_world(actor):
         if actor.colliderect(tile):
             return True
     return False
+
+def check_player_enemy_collision():
+    if not player.alive:
+        return
+
+    for enemy in enemies_list:
+        if player.colliderect(enemy):
+            player.alive = False
+            player.image = "player/tile_0003"
+            break
+
 # END - Collision Functions
+
+# Game Loop Functions
+def start_game():
+    global game_state, enemies_list, bullets, score
+
+    enemies_list.clear()
+    bullets.clear()
+
+    player.pos = (WIDTH // 2, HEIGHT // 2)
+    player.alive = True
+
+    score = 0
+    game_state = GAME_PLAYING
+
+# Player Functions
+def player_movement_update():
+    move_x = 0
+    move_y = 0
+    moving = False
+
+    if keyboard.a:
+        move_x -= player.speed
+        #player.facing_right = False
+        moving = True
+
+    if keyboard.d:
+        move_x += player.speed
+        #player.facing_right = True
+        moving = True
+
+    if keyboard.w:
+        move_y -= player.speed
+        moving = True
+
+    if keyboard.s:
+        move_y += player.speed
+        moving = True
+
+    # Move X
+    player.x += move_x
+    if collides_with_world(player):
+        player.x -= move_x  # undo movement
+    
+    # Move Y
+    player.y += move_y
+    if collides_with_world(player):
+        player.y -= move_y  # undo movement
+
+    weapon.pos = (player.x, player.y)
+
+    if moving:
+        player.anim_timer += 1
+        if player.anim_timer >= 10:
+            player.anim_timer = 0
+            if player.facing_right:
+                player.frame = (player.frame + 1) % len(player_right_walk_frames)
+                player.image = player_right_walk_frames[player.frame]
+            else:
+                player.frame = (player.frame + 1) % len(player_left_walk_frames)
+                player.image = player_left_walk_frames[player.frame]
+    else:
+        player.anim_timer += 1
+        if player.anim_timer >= 15:
+            player.anim_timer = 0
+            if player.facing_right:
+                player.frame = (player.frame + 1) % len(player_right_idle_frames)
+                player.image = player_right_idle_frames[player.frame]
+            else:
+                player.frame = (player.frame + 1) % len(player_left_idle_frames)
+                player.image = player_left_idle_frames[player.frame]
 
 # Enemy Functions
 def create_enemy(pos, image_path, right_walk_frames, left_walk_frames):
@@ -169,6 +305,8 @@ def create_enemy(pos, image_path, right_walk_frames, left_walk_frames):
     enemy.frame = 0
     enemy.moving = False
     enemy.life = enemy_life
+    enemy.width = 8
+    enemy.height = 8
     enemy.right_walk_frames = right_walk_frames
     enemy.left_walk_frames = left_walk_frames
     enemy.facing_right = True
@@ -230,6 +368,61 @@ def update_enemies():
             else:
                 enemy.frame = (enemy.frame + 1) % len(enemy.left_walk_frames)
                 enemy.image = enemy.left_walk_frames[enemy.frame]
+# END - Enemy Functions
+
+# Bullet Functions
+def shoot_bullet(target_pos):
+    bullet = Actor("weapon/tile_0023")
+
+    # Spawn bullet from weapon tip
+    angle = weapon.angle
+    offset_x = 24 * math.cos(math.radians(angle))
+    offset_y = -24 * math.sin(math.radians(angle))
+
+    bullet.pos = (weapon.x + offset_x, weapon.y + offset_y)
+    bullet.width = 2
+    bullet.height = 2
+
+    # Direction vector
+    dx = target_pos[0] - bullet.x
+    dy = target_pos[1] - bullet.y
+    length = (dx ** 2 + dy ** 2) ** 0.5
+
+    if length != 0:
+        dx /= length
+        dy /= length
+
+    bullet.dx = dx
+    bullet.dy = dy
+    bullet.timer = BULLET_LIFETIME
+
+    bullets.append(bullet)
+
+def update_bullets():
+    global score
+
+    for bullet in bullets[:]:
+        bullet.x += bullet.dx * BULLET_SPEED
+        bullet.y += bullet.dy * BULLET_SPEED
+        bullet.timer -= 1
+
+        # Remove bullet after lifetime
+        if bullet.timer <= 0:
+            bullets.remove(bullet)
+            continue
+
+        # Bullet collision with enemies
+        for enemy in enemies_list[:]:
+            if bullet.colliderect(enemy):
+                enemy.life -= 1
+                bullets.remove(bullet)
+
+                if enemy.life <= 0:
+                    enemies_list.remove(enemy)
+                    score += 1
+                break
+
+
 #---------------- LEVEL LOADING ------------------#
 background_tiles = load_level("level_1_background")
 scenario_tiles = load_level("level_1_scenario")
@@ -240,83 +433,67 @@ object_colliders = load_colliders(object_tiles)
 
 #---------------- UPDATE -------------------------#
 def update():
-    # Player movement and animation
-    move_x = 0
-    move_y = 0
-    moving = False
+    global best_score
+    global score
 
-    if keyboard.a:
-        move_x -= player.speed
-        #player.facing_right = False
-        moving = True
-
-    if keyboard.d:
-        move_x += player.speed
-        #player.facing_right = True
-        moving = True
-
-    if keyboard.w:
-        move_y -= player.speed
-        moving = True
-
-    if keyboard.s:
-        move_y += player.speed
-        moving = True
-
-    # Move X
-    player.x += move_x
-    if collides_with_world(player):
-        player.x -= move_x  # undo movement
+    if game_state == GAME_MENU:
+        return
     
-    # Move Y
-    player.y += move_y
-    if collides_with_world(player):
-        player.y -= move_y  # undo movement
+    if game_state == GAME_PLAYING:
+        if not player.alive:
+            if score > best_score:
+                best_score = score
+            return
 
-    weapon.pos = (player.x, player.y)
+    player_movement_update()
 
-    if moving:
-        player.anim_timer += 1
-        if player.anim_timer >= 10:
-            player.anim_timer = 0
-            if player.facing_right:
-                player.frame = (player.frame + 1) % len(player_right_walk_frames)
-                player.image = player_right_walk_frames[player.frame]
-            else:
-                player.frame = (player.frame + 1) % len(player_left_walk_frames)
-                player.image = player_left_walk_frames[player.frame]
-    else:
-        player.anim_timer += 1
-        if player.anim_timer >= 15:
-            player.anim_timer = 0
-            if player.facing_right:
-                player.frame = (player.frame + 1) % len(player_right_idle_frames)
-                player.image = player_right_idle_frames[player.frame]
-            else:
-                player.frame = (player.frame + 1) % len(player_left_idle_frames)
-                player.image = player_left_idle_frames[player.frame]
+    check_player_enemy_collision()
     #END - Player movement and animation
 
     # Enemy spawning and updating
     handle_enemy_spawning()
     update_enemies()
 
+    # Update bullet
+    global shoot_timer
+    if shoot_timer > 0:
+        shoot_timer -= 1
+    update_bullets()
+
 def on_mouse_move(pos):
-    player_position = player.pos
-    mouse_x = pos[0]
+    if game_state != GAME_PLAYING:
+        return
 
     cursor.pos = pos
     weapon.angle = player.angle_to(pos)
 
-    if mouse_x < player_position[0]:
-        player.facing_right = False
-    else:
-        player.facing_right = True
+def on_mouse_down(pos, button):
+    global game_state
+    global shoot_timer
+
+    if button != mouse.LEFT:
+        return
+
+    if game_state == GAME_MENU:
+        if play_button.collidepoint(pos):
+            start_game()
+
+        elif options_button.collidepoint(pos):
+            game_state = GAME_OPTIONS
+
+        elif quit_button.collidepoint(pos):
+            quit()
+
+    elif game_state == GAME_PLAYING:
+        if shoot_timer == 0 and player.alive:
+            shoot_bullet(pos)
+            shoot_timer = SHOOT_COOLDOWN
 
 
 
 #---------------- PIECES CREATION ----------------#
 def draw():
+    # GAME DRAW
     screen.clear()
 
     for tile in background_tiles:
@@ -328,12 +505,36 @@ def draw():
     for tile in object_tiles:
         tile.draw()
 
+    if game_state == GAME_MENU:
+        draw_menu()
+        return
+
     player.draw()
     cursor.draw()
     weapon.draw()
 
     for enemy in enemies_list:
         enemy.draw()
+
+    for bullet in bullets:
+        bullet.draw()
+
+    if not player.alive:
+        screen.draw.filled_rect(
+            Rect((0, 0), (WIDTH, HEIGHT)),
+            (0, 0, 0, 0)
+        )
+
+
+        screen.draw.text(
+            "GAME OVER",
+            center=(WIDTH // 2, HEIGHT // 2),
+            fontsize=48,
+            color="red",
+            fontname = "pressstart2p"
+        )
+
+
 
 
 pgzrun.go()
