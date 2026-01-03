@@ -3,6 +3,7 @@ from random import choice
 import random
 from pgzhelper import Actor, keyboard
 import pgzrun
+from pygame import Rect
 
 #---------------- CONSTANTS ----------------#
 # Game resolution settings
@@ -21,10 +22,12 @@ game_state = GAME_MENU
 play_button = Actor("ui/play_button")
 options_button = Actor("ui/options_button")
 quit_button = Actor("ui/quit_button")
+menu_background = Actor("ui/menu_background")
 
 play_button.pos = (WIDTH // 2, 110)
 options_button.pos = (WIDTH // 2, 150)
 quit_button.pos = (WIDTH // 2, 190)
+menu_background.pos = (WIDTH // 2, HEIGHT // 2)
 
 # Player Data
 player_score = 0
@@ -148,22 +151,31 @@ shoot_timer = 0
 
 # Menu Function
 def draw_menu():
-    #screen.clear()
+    global player_score
+    global best_score
 
-    #screen.draw.text(
-    #    "MY GAME",
-    #    center=(WIDTH // 2, 40),
-    #    fontsize=48
-    #)
+    if player_score > best_score:
+        best_score = player_score
 
+    menu_background.draw()
     play_button.draw()
     options_button.draw()
     quit_button.draw()
 
     screen.draw.text(
-        f"BEST SCORE:\n{best_score}",
-        topleft=(10, 10),
-        fontsize=24
+    f"BEST SCORE\n{best_score}",
+    center=(WIDTH // 2, 44),
+    fontsize=32,
+    fontname="upheavtt",
+    color=(50, 50, 50)
+    )
+
+    screen.draw.text(
+        f"BEST SCORE\n{best_score}",
+        center=(WIDTH // 2, 40),
+        fontsize=32,
+        fontname = "upheavtt",
+        color = "yellow"
     )
 
 # Map Functions
@@ -215,6 +227,8 @@ def collides_with_world(actor):
     return False
 
 def check_player_enemy_collision():
+    global game_state
+
     if not player.alive:
         return
 
@@ -222,6 +236,7 @@ def check_player_enemy_collision():
         if player.colliderect(enemy):
             player.alive = False
             player.image = "player/tile_0003"
+            game_state = GAME_MENU
             break
 
 # END - Collision Functions
@@ -399,7 +414,7 @@ def shoot_bullet(target_pos):
     bullets.append(bullet)
 
 def update_bullets():
-    global score
+    global player_score
 
     for bullet in bullets[:]:
         bullet.x += bullet.dx * BULLET_SPEED
@@ -419,7 +434,7 @@ def update_bullets():
 
                 if enemy.life <= 0:
                     enemies_list.remove(enemy)
-                    score += 1
+                    player_score += 1
                 break
 
 
@@ -433,16 +448,11 @@ object_colliders = load_colliders(object_tiles)
 
 #---------------- UPDATE -------------------------#
 def update():
-    global best_score
-    global score
-
-    if game_state == GAME_MENU:
+    
+    if game_state != GAME_PLAYING:
         return
     
-    if game_state == GAME_PLAYING:
-        if not player.alive:
-            if score > best_score:
-                best_score = score
+    if not player.alive:
             return
 
     player_movement_update()
@@ -518,23 +528,6 @@ def draw():
 
     for bullet in bullets:
         bullet.draw()
-
-    if not player.alive:
-        screen.draw.filled_rect(
-            Rect((0, 0), (WIDTH, HEIGHT)),
-            (0, 0, 0, 0)
-        )
-
-
-        screen.draw.text(
-            "GAME OVER",
-            center=(WIDTH // 2, HEIGHT // 2),
-            fontsize=48,
-            color="red",
-            fontname = "pressstart2p"
-        )
-
-
 
 
 pgzrun.go()
