@@ -17,6 +17,14 @@ GAME_PLAYING = "playing"
 GAME_OPTIONS = "options"
 
 game_state = GAME_MENU
+is_sound_on = True
+move_sound_playing = False
+STEP_SOUND_INTERVAL = 18 
+step_sound_timer = 0
+MENU_MUSIC = "menu_theme"
+GAME_MUSIC = "game_theme"
+
+current_music = None
 
 # Menu Creation
 play_button = Actor("ui/play_button")
@@ -39,6 +47,7 @@ sound_image.pos = (WIDTH // 2 - 20, HEIGHT // 2)
 sound_icon.pos = (sound_image.pos[0] + 80, HEIGHT // 2)
 
 sound_on = True
+
 
 # Player Data
 player_score = 0
@@ -165,6 +174,7 @@ def draw_menu():
     global player_score
     global best_score
 
+    play_music(MENU_MUSIC)
     
     if game_state == GAME_MENU:
         if player_score > best_score:
@@ -255,6 +265,7 @@ def check_player_enemy_collision():
         if player.colliderect(enemy):
             player.alive = False
             player.image = "player/tile_0003"
+            play_sound("lose-a")
             game_state = GAME_MENU
             break
 
@@ -272,6 +283,8 @@ def start_game():
 
     score = 0
     game_state = GAME_PLAYING
+
+    play_music(GAME_MUSIC)
 
 # Player Functions
 def player_movement_update():
@@ -300,12 +313,12 @@ def player_movement_update():
     # Move X
     player.x += move_x
     if collides_with_world(player):
-        player.x -= move_x  # undo movement
+        player.x -= move_x 
     
     # Move Y
     player.y += move_y
     if collides_with_world(player):
-        player.y -= move_y  # undo movement
+        player.y -= move_y 
 
     weapon.pos = (player.x, player.y)
 
@@ -329,6 +342,8 @@ def player_movement_update():
             else:
                 player.frame = (player.frame + 1) % len(player_left_idle_frames)
                 player.image = player_left_idle_frames[player.frame]
+
+    update_move_sound(moving)
 
 # Enemy Functions
 def create_enemy(pos, image_path, right_walk_frames, left_walk_frames):
@@ -456,6 +471,57 @@ def update_bullets():
                     player_score += 1
                 break
 
+# Sound Functions
+def play_sound(sound_name):
+    if is_sound_on:
+        sound = getattr(sounds, sound_name, None)
+        if sound:
+            sound.play()
+
+def update_move_sound(moving):
+    global step_sound_timer
+
+    if not is_sound_on:
+        return
+
+    if moving:
+        if step_sound_timer <= 0:
+            sounds.movec.play()
+            step_sound_timer = STEP_SOUND_INTERVAL
+        else:
+            step_sound_timer -= 1
+    else:
+        step_sound_timer = 0
+
+def toggle_sound_active():
+    global is_sound_on
+
+    if is_sound_on:
+        is_sound_on = False
+    else:
+        is_sound_on = True
+
+def play_music(music_name):
+    global current_music
+
+    if not is_sound_on:
+        return
+
+    if current_music == music_name:
+        return   
+
+    music.stop()
+    music.play(music_name)
+    current_music = music_name
+
+
+def stop_music():
+    global current_music
+    music.stop()
+    current_music = None
+
+
+
 
 #---------------- LEVEL LOADING ------------------#
 background_tiles = load_level("level_1_background")
@@ -474,10 +540,9 @@ def update():
     if not player.alive:
             return
 
+    # Player movement and collision
     player_movement_update()
-
     check_player_enemy_collision()
-    #END - Player movement and animation
 
     # Enemy spawning and updating
     handle_enemy_spawning()
@@ -521,21 +586,26 @@ def on_mouse_down(pos, button):
         elif sound_icon.collidepoint(pos):
             if sound_on:
                 sound_icon.image = "ui/sound_off_image"
+                toggle_sound_active()
+                stop_music()
                 sound_on = False
             else:
                 sound_icon.image = "ui/sound_on_image"
+                play_music(MENU_MUSIC)
+                toggle_sound_active()
                 sound_on = True
 
     elif game_state == GAME_PLAYING:
         if shoot_timer == 0 and player.alive:
             shoot_bullet(pos)
+            play_sound("shoota")
             shoot_timer = SHOOT_COOLDOWN
 
 
 
-#---------------- PIECES CREATION ----------------#
+#---------------- GAME DRAW ----------------#
 def draw():
-    # GAME DRAW
+
     screen.clear()
 
     for tile in background_tiles:
