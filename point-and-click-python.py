@@ -273,7 +273,7 @@ def check_player_enemy_collision():
 
 # Game Loop Functions
 def start_game():
-    global game_state, enemies_list, bullets, score
+    global game_state, enemies_list, bullets, player_score
 
     enemies_list.clear()
     bullets.clear()
@@ -281,7 +281,7 @@ def start_game():
     player.pos = (WIDTH // 2, HEIGHT // 2)
     player.alive = True
 
-    score = 0
+    player_score = 0
     game_state = GAME_PLAYING
 
     play_music(GAME_MUSIC)
